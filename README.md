@@ -70,11 +70,11 @@ To verify code coverage (must be at least **85%**), use `coverage.py`:
 
 ### Latest Coverage Report
 ```
-Name                     Stmts   Miss  Cover   Missing
-------------------------------------------------------
-reservation_system.py      141      1     99%      279
-------------------------------------------------------
-TOTAL                     141      1     99%
+Name                     Stmts   Miss  Cover   
+------------------------------------------------
+reservation_system.py      264      24     91%      
+------------------------------------------------
+TOTAL                      264      24     91%
 ```
 
 ```bash
@@ -82,8 +82,4 @@ pip install coverage
 coverage run --source=reservation_system -m unittest reservation_system.py
 coverage report -m
 ```
-This will generate a report indicating which lines of code are covered by the tests, such as the one exemplified with this code´s report. 
-
-
-
-
+This will generate a report indicating which lines of code are covered by the tests.
