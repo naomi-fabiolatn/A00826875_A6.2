@@ -46,6 +46,39 @@ class Hotel:
         with open(filename, "r", encoding="utf-8") as file:
             return [Hotel(**data) for data in json.load(file)]
 
+    @staticmethod
+    def delete_hotel(hotel_id, filename="hotels.json"):
+        """Deletes a hotel by ID from the JSON file."""
+        hotels = Hotel.load_hotels(filename)
+        hotels = [hotel for hotel in hotels if hotel.hotel_id != hotel_id]
+        Hotel.save_hotels(hotels, filename)
+
+    @staticmethod
+    def modify_hotel(hotel_id, name=None, location=None,
+                     rooms_available=None, filename="hotels.json"):
+        """Modifies hotel information based on the given parameters."""
+        hotels = Hotel.load_hotels(filename)
+        for hotel in hotels:
+            if hotel.hotel_id == hotel_id:
+                if name:
+                    hotel.name = name
+                if location:
+                    hotel.location = location
+                if rooms_available is not None:
+                    hotel.rooms_available = rooms_available
+        Hotel.save_hotels(hotels, filename)
+
+    @staticmethod
+    def reserve_room(hotel_id, filename="hotels.json"):
+        """Reserves a room in a hotel if available."""
+        hotels = Hotel.load_hotels(filename)
+        for hotel in hotels:
+            if hotel.hotel_id == hotel_id and hotel.rooms_available > 0:
+                hotel.rooms_available -= 1
+                Hotel.save_hotels(hotels, filename)
+                return True
+        return False
+
 
 class Customer:
     """Represents a customer entity."""
@@ -84,6 +117,25 @@ class Customer:
         with open(filename, "r", encoding="utf-8") as file:
             return [Customer(**data) for data in json.load(file)]
 
+    @staticmethod
+    def delete_customer(customer_id, filename="customers.json"):
+        """Deletes a customer by ID from the JSON file."""
+        customers = Customer.load_customers(filename)
+        customers = [customer for customer in customers if customer.customer_id != customer_id]
+        Customer.save_customers(customers, filename)
+
+    @staticmethod
+    def modify_customer(customer_id, name=None, contact_info=None, filename="customers.json"):
+        """Modifies customer information based on the given parameters."""
+        customers = Customer.load_customers(filename)
+        for customer in customers:
+            if customer.customer_id == customer_id:
+                if name:
+                    customer.name = name
+                if contact_info:
+                    customer.contact_info = contact_info
+        Customer.save_customers(customers, filename)
+
 
 class Reservation:
     """Represents a reservation entity."""
@@ -118,10 +170,111 @@ class Reservation:
         with open(filename, "r", encoding="utf-8") as file:
             return [Reservation(**data) for data in json.load(file)]
 
+    @staticmethod
+    def cancel_reservation(reservation_id, reservation_file="reservations.json",
+                           hotel_file="hotels.json"):
+        """Cancels a reservation and updates hotel room availability."""
+        reservations = Reservation.load_reservations(reservation_file)
+        reservation_to_cancel = next(
+            (res for res in reservations if res.reservation_id == reservation_id),
+            None
+            )
+        
+        if reservation_to_cancel:
+            # Remove reservation
+            reservations = [res for res in reservations if res.reservation_id != reservation_id]
+            Reservation.save_reservations(reservations, reservation_file)
+            
+            # Restore hotel room availability
+            hotels = Hotel.load_hotels(hotel_file)
+            for hotel in hotels:
+                if hotel.hotel_id == reservation_to_cancel.hotel_id:
+                    hotel.rooms_available += 1
+            Hotel.save_hotels(hotels, hotel_file)
+            return True
+        return False
+
 
 # Unit Tests
 class TestHotelReservation(unittest.TestCase):
     """Unit tests for the Hotel Reservation System."""
+
+    def setUp(self):
+        """Setup method to initialize test data."""
+        self.hotel = Hotel(1, "Test Hotel", "Nowhere", 10)
+        self.customer = Customer(1, "John Doe", "john@example.com")
+        self.reservation = Reservation(1, 1, 1)
+
+    def test_create_hotel_invalid_id(self):
+        """Tests that creating a hotel with an invalid ID raises a ValueError."""
+        with self.assertRaises(ValueError):
+            Hotel("invalid", "Test Hotel", "Nowhere", 10)
+
+    def test_create_hotel_negative_rooms(self):
+        """Tests that creating a hotel with negative rooms raises a ValueError."""
+        with self.assertRaises(ValueError):
+            Hotel(1, "Test Hotel", "Nowhere", -5)
+
+    def test_delete_hotel(self):
+        """Tests deleting a hotel from the system."""
+        Hotel.save_hotels([self.hotel])
+        Hotel.delete_hotel(1)
+        hotels = Hotel.load_hotels()
+        self.assertEqual(len(hotels), 0)
+
+    def test_modify_hotel(self):
+        """Tests modifying a hotel's information."""
+        Hotel.save_hotels([self.hotel])
+        Hotel.modify_hotel(1, name="Updated Hotel", location="Somewhere")
+        updated_hotel = Hotel.load_hotels()[0]
+        self.assertEqual(updated_hotel.name, "Updated Hotel")
+        self.assertEqual(updated_hotel.location, "Somewhere")
+
+    def test_reserve_room(self):
+        """Tests reserving a room in a hotel."""
+        Hotel.save_hotels([self.hotel])
+        success = Hotel.reserve_room(1)
+        updated_hotel = Hotel.load_hotels()[0]
+        self.assertTrue(success)
+        self.assertEqual(updated_hotel.rooms_available, 9)
+
+    def test_cancel_reservation(self):
+        """Tests canceling a reservation and restoring hotel availability."""
+        Hotel.save_hotels([self.hotel])
+        Reservation.save_reservations([self.reservation])
+        success = Reservation.cancel_reservation(1)
+        updated_hotel = Hotel.load_hotels()[0]
+        self.assertTrue(success)
+        self.assertEqual(updated_hotel.rooms_available, 10)
+
+    def test_create_customer_invalid_id(self):
+        """Tests that creating a customer with an invalid ID raises a ValueError."""
+        with self.assertRaises(ValueError):
+            Customer("", "John Doe", "john@example.com")
+
+    def test_delete_customer(self):
+        """Tests deleting a customer from the system."""
+        Customer.save_customers([self.customer])
+        Customer.delete_customer(1)
+        customers = Customer.load_customers()
+        self.assertEqual(len(customers), 0)
+
+    def test_modify_customer(self):
+        """Tests modifying a customer's information."""
+        Customer.save_customers([self.customer])
+        Customer.modify_customer(1, name="Jane Doe")
+        updated_customer = Customer.load_customers()[0]
+        self.assertEqual(updated_customer.name, "Jane Doe")
+
+    def test_create_reservation_invalid_id(self):
+        """Tests that creating a reservation with an invalid ID raises a ValueError."""
+        with self.assertRaises(ValueError):
+            Reservation("invalid", 1, 1)
+
+    def test_create_reservation_valid(self):
+        """Tests that a valid reservation is created successfully."""
+        reservation = Reservation(1, 1, 1)
+        self.assertEqual(reservation.reservation_id, 1)
 
     def test_create_hotel_invalid_id(self):
         """
@@ -279,6 +432,27 @@ class TestHotelReservation(unittest.TestCase):
         Reservation.save_reservations(reservations)
         loaded_reservations = Reservation.load_reservations()
         self.assertEqual(loaded_reservations[0].reservation_id, 2)
+
+    def test_cancel_reservation(self):
+        """Tests canceling a reservation and restoring hotel availability."""
+        Hotel.save_hotels([self.hotel])
+        self.assertEqual(Hotel.load_hotels()[0].rooms_available, 10)
+        
+        Reservation.save_reservations([self.reservation])
+        Hotel.reserve_room(1)
+        updated_hotel = Hotel.load_hotels()[0]
+        self.assertEqual(updated_hotel.rooms_available, 9)
+
+        success = Reservation.cancel_reservation(1)
+        updated_hotel = Hotel.load_hotels()[0]
+        self.assertTrue(success)
+        self.assertEqual(updated_hotel.rooms_available, 10)
+
+    def tearDown(self):
+        """Cleans up JSON files after each test."""
+        for file in ["hotels.json", "customers.json", "reservations.json"]:
+            if os.path.exists(file):
+                os.remove(file)
 
 
 if __name__ == "__main__":
